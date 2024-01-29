@@ -6,7 +6,7 @@ apt install -y $PACKAGES
 curl https://pyenv.run | bash
 
 ### PATH에 pyenv 등록
-echo 'export PYENV_ROOT="$HOME/.pyenv"
+echo 'export PYENV_ROOT="/data/ephemeral/.pyenv"
 [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
 eval "$(pyenv init -)"' >> ~/.bashrc
 
