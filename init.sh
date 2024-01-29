@@ -5,7 +5,7 @@ PACKAGES='curl libbz2-dev libssl-dev libsqlite3-dev liblzma-dev libffi-dev libnc
 apt install -y $PACKAGES
 
 ### pyenv 설치
-export PYENV_ROOT="/data/ephemeral/.pyenv
+export PYENV_ROOT="/data/ephemeral/.pyenv"
 curl https://pyenv.run | bash
 
 ### PATH에 pyenv 등록
