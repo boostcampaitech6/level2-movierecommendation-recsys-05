@@ -1,3 +1,12 @@
+PutTextIn() {
+  ### 파일에 텍스트가 존재한지 확인 후 없으면 추가
+  if ! $(grep -q $"$1" $"$2" 2> /dev/null); then
+    echo $"$1" >> $"$2"
+    echo >> $"$2"
+  fi 
+}
+
+### apt 업데이트
 apt update
 
 ### python 컴파일에 필요한 패키지들을 설치
@@ -9,26 +18,40 @@ export PYENV_ROOT="/data/ephemeral/.pyenv"
 curl https://pyenv.run | bash
 
 ### PATH에 pyenv 등록
-echo 'export PYENV_ROOT="/data/ephemeral/.pyenv"
+# text='export PYENV_ROOT="/data/ephemeral/.pyenv"
+# [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
+# eval "$(pyenv init -)"'
+text=$(cat <<'EOF'
+export PYENV_ROOT="/data/ephemeral/.pyenv"
 [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
-eval "$(pyenv init -)"' >> ~/.bashrc
+eval "$(pyenv init -)"
+EOF
+)
+
+PutTextIn $"$text" ~/.bashrc
+
 
 source ~/.bashrc
 
-### python 3.10.13 설치
-pyenv install 3.10.13
-pyenv global 3.10.13
+### python 버전 선택
+default="3.9.18"
+read -p "값을 입력하세요 (기본값: $default): " -e input
+PYTHON_VERSION=${input:-$default}
+
+pyenv install $PYTHON_VERSION
+pyenv global $PYTHON_VERSION
 
 ### python 버전 확인
 which python
 
 
 ### git branch 표시
-echo '
+text=$(cat <<'EOF'
 parse_git_branch() {
-     git branch 2> /dev/null | sed -e '\''/^[^*]/d'\'' -e '\''s/* \(.*\)/(\1)/'\''
+     git branch 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/(\1)/'
 }
 export PS1="\u@\h \[\e[32m\]\w \[\e[91m\]\$(parse_git_branch)\[\e[00m\]$ "
-' >> ~/.bashrc
+EOF
+)
 
-source ~/.bashrc
+PutTextIn $"$text" ~/.bashrc
