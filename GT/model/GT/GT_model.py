@@ -5,9 +5,9 @@ from torch_geometric.nn.models import LightGCN
 
 
 
-class GCNTModel(nn.Module):
+class GTModel(nn.Module):
     def __init__(self, cfg):
-        super(GCNTModel, self).__init__()
+        super(GTModel, self).__init__()
         self.seq_len = cfg.seq_len
         seq_len, emb_size, hidden_size = cfg.seq_len, cfg.emb_size, cfg.hidden_size
 
@@ -43,7 +43,7 @@ class GCNTModel(nn.Module):
             nn.LayerNorm(hidden_size)
         )
         
-        self.encoder = MultiHeadAttention(cfg)
+        self.encoder = Encoder(cfg)
 
         self.reg_layer = nn.Sequential(
             nn.Linear(hidden_size, hidden_size),
@@ -79,9 +79,9 @@ class GCNTModel(nn.Module):
 
 
 
-class MultiHeadAttention(nn.Module):
+class Encoder(nn.Module):
     def __init__(self, cfg, USE_BIAS=True):
-        super(MultiHeadAttention, self).__init__()
+        super(Encoder, self).__init__()
         if (cfg.hidden_size % cfg.n_head) != 0:
             raise ValueError("d_feat(%d) should be divisible by b_head(%d)"%(cfg.hidden_size, cfg.n_head))
         self.d_feat = cfg.hidden_size
@@ -96,12 +96,12 @@ class MultiHeadAttention(nn.Module):
         self.lin_V = nn.Linear(self.d_feat, self.d_feat, USE_BIAS)
         
 
-    def forward(self, input, mask=None):
-        n_batch = input.shape[0]
+    def forward(self, query, key, mask=None):
+        n_batch = query.shape[0]
         
-        Q = self.lin_Q(input)
-        K = self.lin_K(input)
-        V = self.lin_V(input)
+        Q = self.lin_Q(query)
+        K = self.lin_K(key)
+        V = self.lin_V(key)
 
         Q = Q.view(n_batch, -1, self.n_head, self.d_head)
         K = K.view(n_batch, -1, self.n_head, self.d_head)
@@ -131,7 +131,7 @@ class CustomModel(nn.Module):
         self.node = node
         self.LGCN = LightGCN(num_nodes=cfg.node_size, embedding_dim=cfg.hidden_size, num_layers=cfg.hop)
 
-        self.GCNT = GCNTModel(cfg)
+        self.GCNT = GTModel(cfg)
 
 
     def forward(self, input, target: None):
