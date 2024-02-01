@@ -1,0 +1,26 @@
+"device" : "cuda"
+"seed" : 7
+
+"model_dir" : "./models/"
+"model_name" : "best_model.pt"
+"output_dir" : "./outputs/"
+
+"batch_size" : 256
+"dropout" : 0.2
+"hidden_size" : 128
+"emb_size" : 128
+"n_layers" : 1
+"n_head" : 8
+"seq_len" : 256
+"target_size" : 1
+"n_epochs" : 5 
+"lr" : 0.001
+
+"cate_cols" :
+- "userID"
+
+"cont_cols" :
+- "year"
+- "month"
+- "day"
+- "hour"
