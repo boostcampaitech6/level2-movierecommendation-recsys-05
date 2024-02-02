@@ -35,13 +35,13 @@ class GTDataset(Dataset):
 
         with torch.device(self.device):
             # 0으로 채워진 output tensor 제작    
-            node_query = torch.zeros(10, 2)           
-            node_key = torch.zeros(self.max_seq_len - 10, 2, dtype=torch.long)              
-            cate_query = torch.zeros(10, len(self.cate_cols), dtype=torch.long)
-            cate_key = torch.zeros(self.max_seq_len - 10, len(self.cate_cols), dtype=torch.long)
-            cont_query = torch.zeros(10, len(self.cont_cols), dtype=torch.float)
-            cont_key = torch.zeros(self.max_seq_len - 10, len(self.cont_cols), dtype=torch.float)
-            mask = torch.BoolTensor(self.max_seq_len - 10)
+            node_query = torch.zeros(self.max_seq_len, 2, dtype=torch.long)             
+            node_key = torch.zeros(self.max_seq_len, 2, dtype=torch.long)              
+            cate_query = torch.zeros(self.max_seq_len, len(self.cate_cols), dtype=torch.long)
+            cate_key = torch.zeros(self.max_seq_len, len(self.cate_cols), dtype=torch.long)
+            cont_query = torch.zeros(self.max_seq_len, len(self.cont_cols), dtype=torch.float)
+            cont_key = torch.zeros(self.max_seq_len, len(self.cont_cols), dtype=torch.float)
+            mask = torch.BoolTensor(self.max_seq_len)
         
             # tensor에 값 채워넣기
             node_query[-seq_len:] = torch.ShortTensor(self.nodes[target_idx]) # 16bit signed integer
