@@ -9,15 +9,16 @@ class GTDataset(Dataset):
         self.df = df
         self.df = self.df.sort_values(by=['user', 'time'])
 
-        self.cate_len, self.node_len = _indexing_data(self.df)
-        self.u_start_end = _u_start_end(self.df, cfg.min_seq)
-        self.len = len(self.u_start_end)
-
         self.max_seq_len = cfg.seq_len
         self.node_cols = cfg.node_cols
         self.cate_cols = cfg.cate_cols
         self.cont_cols = cfg.cont_cols
+        self.target_len = cfg.target_len        
         
+        self.cate_len, self.node_len = self._get_indexing_data(self.df)
+        self.u_start_end = self._get_u_start_end(self.df, cfg.min_seq)
+        self.len = len(self.u_start_end)
+
         self.nodes = self.df[self.node_cols].values
         self.cate_features = self.df[self.cate_cols].values
         self.cont_features = self.df[self.cont_cols].values
@@ -35,35 +36,36 @@ class GTDataset(Dataset):
 
         with torch.device(self.device):
             # 0으로 채워진 output tensor 제작    
-            node_query = torch.zeros(self.max_seq_len, 2, dtype=torch.long)             
-            node_key = torch.zeros(self.max_seq_len, 2, dtype=torch.long)              
-            cate_query = torch.zeros(self.max_seq_len, len(self.cate_cols), dtype=torch.long)
-            cate_key = torch.zeros(self.max_seq_len, len(self.cate_cols), dtype=torch.long)
-            cont_query = torch.zeros(self.max_seq_len, len(self.cont_cols), dtype=torch.float)
-            cont_key = torch.zeros(self.max_seq_len, len(self.cont_cols), dtype=torch.float)
+            node = torch.zeros(self.max_seq_len, 2, dtype=torch.long)        
+            cate = torch.zeros(self.max_seq_len, len(self.cate_cols), dtype=torch.long)
+            cont = torch.zeros(self.max_seq_len, len(self.cont_cols), dtype=torch.float)
             mask = torch.BoolTensor(self.max_seq_len)
         
             # tensor에 값 채워넣기
-            node_query[-seq_len:] = torch.ShortTensor(self.nodes[target_idx]) # 16bit signed integer
-            node_key[-seq_len:] = torch.ShortTensor(self.nodes[start:end]) # 16bit signed integer
-            cate_query[-seq_len:] = torch.ShortTensor(self.cate_features[target_idx]) # 16bit signed integer
-            cate_key[-seq_len:] = torch.ShortTensor(self.cate_features[start:end]) # 16bit signed integer
-            cont_query[-seq_len:] = torch.HalfTensor(self.cont_features[target_idx]) # 16bit float
-            cont_key[-seq_len:] = torch.HalfTensor(self.cont_features[start:end]) # 16bit float
+            node[-seq_len:] = torch.ShortTensor(self.nodes[start:end]) # 16bit signed integer
+            cate[-seq_len:] = torch.ShortTensor(self.cate_features[start:end]) # 16bit signed integer
+            cont[-seq_len:] = torch.HalfTensor(self.cont_features[start:end]) # 16bit float
             mask[:-seq_len] = True
             mask[-seq_len:] = False        
-                
-            target = torch.FloatTensor()
+            
+            node[-seq_len:]
+
+            ### target은 10개의 item을 랜덤으로 선택하여 넣는다
+            target = torch.FloatTensor(self.nodes.iloc[target_idx, 1])
+
+
+            
+            
 
         return {'node'          : node, 
-                'cate_feature'  : cate_feature, 
-                'cont_feature'  : cont_feature, 
+                'cate_feature'  : cate, 
+                'cont_feature'  : cont, 
                 'mask'          : mask, 
                 'target'        : target,
                 }
     
 
-    def _u_start_end(self, df: pd.DataFrame, min_seq: int) -> list:
+    def _get_u_start_end(self, df: pd.DataFrame, min_seq: int) -> list:
         u_s_e = df.reset_index().groupby('user')['index']
         u_s_e = u_s_e.apply(lambda x: (x.min(), x.max()))
         u_s_e = [(min, i) for min, max in u_s_e for i in range(min + min_seq, max + 1)]
@@ -71,18 +73,18 @@ class GTDataset(Dataset):
         return u_s_e
     
 
-    def _indexing_data(self, df: pd.DataFrame) -> tuple[pd.DataFrame, int, int]:
+    def _get_indexing_data(self, df: pd.DataFrame) -> tuple[pd.DataFrame, int, int]:
         
         def obj2idx(df: pd.DataFrame, cols: list) -> tuple[pd.DataFrame, int]:
             # nan 값이 0이므로 위해 offset은 1에서 출발한다
             offset = 1
 
             # Transformer을 위한 categorical feature의 index를 구한다
-            for col in self.cols:
+            for col in cols:
 
                 # 각 column마다 mapper를 만든다
                 obj2idx = {}
-                for v in df[cols].unique():
+                for v in df[col].unique():
 
                     # np.nan != np.nan은 True가 나온다
                     # nan 및 None은 넘기는 코드

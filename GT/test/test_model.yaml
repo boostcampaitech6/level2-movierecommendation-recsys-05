@@ -15,12 +15,15 @@
 "target_size" : 1
 "n_epochs" : 5 
 "lr" : 0.001
+"min_seq" : 15
+
+"node_cols" :
+- "user"
+- "item"
 
 "cate_cols" :
-- "userID"
+- "test_a"
 
 "cont_cols" :
-- "year"
-- "month"
-- "day"
-- "hour"
+- "test_b"
+
