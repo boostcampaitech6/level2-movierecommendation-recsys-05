@@ -12,7 +12,7 @@
 "n_layers" : 1
 "n_head" : 8
 "seq_len" : 256
-"target_size" : 1
+"target_len" : 10
 "n_epochs" : 5 
 "lr" : 0.001
 "min_seq" : 15

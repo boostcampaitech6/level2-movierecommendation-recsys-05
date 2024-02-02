@@ -8,16 +8,16 @@ current_path = os.path.dirname(os.path.realpath(__file__))
 config_file_list = [os.path.join(current_path, 'test_model.yaml')]
 
 
-
 class test_dataset(unittest.TestCase):
-    def test_dataset(self):
+    def setUp(self):
         df = pd.read_csv('test/data/train_ratings.csv')
         cfg = CFG('test/test_model.yaml')
 
-        ds = GTDataset(df, cfg)
+        self.ds = GTDataset(df, cfg)
 
-        for data in ds:
-            print(data)
+    def test_dataset(self):
+        item = self.ds[0]
+        self.assertEqual(item['node'].shape, (10, 3))
 
 
 
