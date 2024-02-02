@@ -1,8 +1,15 @@
 import os
 import unittest
-import ..GT_dataset import GTDataset
+
+# import sys
+from os import path
+print(path.dirname( path.dirname( path.abspath(__file__) ) ))
+# sys.path.append(path.dirname( path.dirname( path.abspath(__file__) ) ))
+
+
+from src.GT_dataset import GTDataset
 import pandas as pd
-from ..utils import CFG
+from src.utils import CFG
 
 current_path = os.path.dirname(os.path.realpath(__file__))
 config_file_list = [os.path.join(current_path, 'test_model.yaml')]
