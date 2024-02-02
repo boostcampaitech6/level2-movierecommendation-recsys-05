@@ -44,9 +44,14 @@ pip install -e . --verbose
 ## Start
 
 ```bash
+# Atomic File 생성
 python recbole_dataset.py
-python run_recbole.py --model=[model_name]
-python run_inference.py --model_path=[saved_model_path]
+
+# 모델 학습
+python run_recbole.py --model 'MODEL_NAME' --dataset 'movierec' --config_files 'CONFIG_FILE_PATH'
+
+# 예측 수행
+python run_inference.py --model_path 'MODEL_PATH'
 ```
 
 ## Cite
