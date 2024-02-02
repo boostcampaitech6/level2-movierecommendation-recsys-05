@@ -15,7 +15,9 @@ wandb/*
 /ray_log*
 asset
 conda
-dataset
+dataset/ml-100k
+dataset/movierec
+dataset/kg_url.yaml
 docs
 log
 output
