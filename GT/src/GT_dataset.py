@@ -61,7 +61,7 @@ class GTDataset(Dataset):
 
             mask = torch.zeros(self.max_seq_len, dtype=torch.bool)
             mask[:-seq_len] = True
-            mask[-seq_len:] = False        
+            mask[query_index] = True    
             output['mask'] = mask
 
             target = torch.tensor(self.df[self.node_col_names].values[target_idx, 1], dtype=torch.int32)

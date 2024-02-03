@@ -16,7 +16,7 @@ class test_dataset(unittest.TestCase):
     def test_dataset(self):
         item = self.ds[2]
         print(item)
-        self.assertEqual(item['node'].shape, (10, 3))
+        assert()
 
 
 
