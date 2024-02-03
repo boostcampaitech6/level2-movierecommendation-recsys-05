@@ -51,15 +51,11 @@ class GTDataset(Dataset):
             for name, dtype, default, length, data in zip(*[self.ingredients[key] for key in self.ingredients.keys()]):
                 temp = torch.tensor(data[start:end], dtype=dtype)
 
-                query = torch.zeros(self.max_seq_len, length, dtype=dtype)
-                query[query_index] = torch.tensor(default, dtype=dtype)
+                seq = torch.zeros(self.max_seq_len, length, dtype=dtype)
+                seq[-seq_len:] = temp
+                seq[query_index] = torch.tensor(default, dtype=dtype)
 
-                key = torch.zeros(self.max_seq_len, length, dtype=dtype)
-                key[-seq_len:] = temp
-                key[query_index] = 0
-
-                output[f'{name}_query'] = query
-                output[f'{name}_key'] = key
+                output[f'{name}_seq'] = seq
 
             output['query_index'] = query_index
 

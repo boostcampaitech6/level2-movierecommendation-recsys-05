@@ -19,8 +19,7 @@ class GTModel(nn.Module):
 
 
         position_embedding = nn.Embedding(seq_len, emb_size)
-        positions = torch.arange(seq_len, dtype=torch.long).unsqueeze(0)
-        self.positions = position_embedding(positions)
+        self.position_emb = position_embedding(torch.arange(seq_len, dtype=torch.long).unsqueeze(0))
 
         # category
         self.cate_emb = nn.Embedding(cfg.total_cate_size, emb_size, padding_idx=0)
@@ -54,7 +53,7 @@ class GTModel(nn.Module):
         )
         
         
-    def forward(self, node, cate_x, cont_x, mask):        
+    def forward(self, node, cate_x, cont_x, mask, query_index):        
         batch_size = cate_x.size(0)
         
         # category
@@ -69,9 +68,9 @@ class GTModel(nn.Module):
         seq_emb = torch.cat([node, cate_emb, cont_emb], 2)
         seq_emb = self.comb_proj(seq_emb)
 
-        seq_emb += self.positions
+        seq_emb += self.position_emb
 
-        encoded = self.encoder(seq_emb, mask)
+        encoded = self.encoder(seq_emb, query_index, mask)
 
         output = self.reg_layer(encoded)
 
@@ -96,8 +95,11 @@ class Encoder(nn.Module):
         self.lin_V = nn.Linear(self.d_feat, self.d_feat, USE_BIAS)
         
 
-    def forward(self, query, key, mask=None):
-        n_batch = query.shape[0]
+    def forward(self, seq, query_index, mask=None):
+        n_batch = seq.shape[0]
+
+        query = seq[query_index].contiguous()
+        key = seq[np.setdiff1d(np.arange(self.seq_len), query_index)].contiguous()
         
         Q = self.lin_Q(query)
         K = self.lin_K(key)
