@@ -4,8 +4,6 @@ from src.GT_dataset import GTDataset
 import pandas as pd
 from src.utils import CFG
 
-current_path = os.path.dirname(os.path.realpath(__file__))
-config_file_list = [os.path.join(current_path, 'test_model.yaml')]
 
 
 class test_dataset(unittest.TestCase):
@@ -16,7 +14,8 @@ class test_dataset(unittest.TestCase):
         self.ds = GTDataset(df, cfg)
 
     def test_dataset(self):
-        item = self.ds[0]
+        item = self.ds[2]
+        print(item)
         self.assertEqual(item['node'].shape, (10, 3))
 
 

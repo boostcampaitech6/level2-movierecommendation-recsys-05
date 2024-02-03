@@ -11,18 +11,25 @@ class GTDataset(Dataset):
         self.df = self.df.sort_values(by=['user', 'time'])
 
         self.max_seq_len = cfg.seq_len
-        self.node_cols = cfg.node_cols
-        self.cate_cols = cfg.cate_cols
-        self.cont_cols = cfg.cont_cols
-        self.target_len = cfg.target_len        
+        self.target_len = cfg.target_len 
+
+        ### 각 종류의 feature들의 이름을 저장한다
+        self.node_col_names = cfg.node_col_names
+        self.cate_col_names = cfg.cate_col_names
+        self.cont_col_names = cfg.cont_col_names
         
         self.cate_len, self.node_len = self._get_indexing_data(self.df)
         self.u_start_end = self._get_u_start_end(self.df, cfg.min_seq)
         self.len = len(self.u_start_end)
 
-        self.nodes = self.df[self.node_cols].values
-        self.cate_features = self.df[self.cate_cols].values
-        self.cont_features = self.df[self.cont_cols].values
+        ### 각 종류의 feature들에 대응하는 query, key를 만들기 위한 정보를 저장한다
+        self.ingredients = {
+            'names'       : ('node',                              'cate',                                 'cont'),
+            'dtypes'      : (torch.int32,                         torch.int32,                            torch.float16),
+            'defaults'    : ((0, 1),                              1,                                      1.0),
+            'lengths'     : (len(self.node_col_names),            len(self.cate_col_names),               len(self.cont_col_names)),
+            'datas'       : (self.df[self.node_col_names].values, self.df[self.cate_col_names].values,    self.df[self.cont_col_names].values),
+        }
 
         self.device = cfg.device
 
@@ -33,37 +40,38 @@ class GTDataset(Dataset):
         start = max(end - self.max_seq_len, start)
         seq_len = end - start
 
+        ### target은 10개의 item을 랜덤으로 선택한다.
         target_idx = np.random.choice(range(seq_len), 10, replace=False)
         target_idx = np.sort(target_idx)
+        
+        query_index = target_idx + self.max_seq_len - seq_len
+        output = {}
 
         with torch.device(self.device):
-            # 0으로 채워진 output tensor 제작    
-            node_query = torch.zeros(self.max_seq_len, len(self.node_cols), dtype=torch.int32)        
-            node_key = torch.zeros(self.max_seq_len, len(self.node_cols), dtype=torch.int32)        
-            cate = torch.zeros(self.max_seq_len, len(self.cate_cols), dtype=torch.int32)
-            cont = torch.zeros(self.max_seq_len, len(self.cont_cols), dtype=torch.float16)
-            mask = torch.zeros(self.max_seq_len, dtype=torch.bool)
-        
-            # tensor에 값 채워넣기
-            temp = torch.tensor(self.nodes[start:end], dtype=torch.int32)
-            node_query[target_idx + self.max_seq_len - seq_len] = temp[target_idx]
-            node_key[-seq_len:] = temp # 16bit signed integer
-            node_key[target_idx + self.max_seq_len - seq_len] = 0
+            for name, dtype, default, length, data in zip(*[self.ingredients[key] for key in self.ingredients.keys()]):
+                temp = torch.tensor(data[start:end], dtype=dtype)
 
-            cate[-seq_len:] = torch.tensor(self.cate_features[start:end], dtype=torch.int32) # 16bit signed integer
-            cont[-seq_len:] = torch.tensor(self.cont_features[start:end], dtype=torch.float16) # 16bit float
+                query = torch.zeros(self.max_seq_len, length, dtype=dtype)
+                query[query_index] = torch.tensor(default, dtype=dtype)
+
+                key = torch.zeros(self.max_seq_len, length, dtype=dtype)
+                key[-seq_len:] = temp
+                key[query_index] = 0
+
+                output[f'{name}_query'] = query
+                output[f'{name}_key'] = key
+
+            output['query_index'] = query_index
+
+            mask = torch.zeros(self.max_seq_len, dtype=torch.bool)
             mask[:-seq_len] = True
             mask[-seq_len:] = False        
+            output['mask'] = mask
 
-            ### target은 10개의 item을 랜덤으로 선택하여 넣는다
-            target = torch.FloatTensor(self.nodes.iloc[target_idx, 1])
+            target = torch.tensor(self.df[self.node_col_names].values[target_idx, 1], dtype=torch.int32)
+            output['target'] = target
 
-        return {'node'          : node_query, 
-                'cate_feature'  : cate, 
-                'cont_feature'  : cont, 
-                'mask'          : mask, 
-                'target'        : target,
-                }
+        return output
     
 
     def _get_u_start_end(self, df: pd.DataFrame, min_seq: int) -> list:
@@ -76,9 +84,7 @@ class GTDataset(Dataset):
 
     def _get_indexing_data(self, df: pd.DataFrame) -> tuple[pd.DataFrame, int, int]:
         
-        def obj2idx(df: pd.DataFrame, cols: list) -> tuple[pd.DataFrame, int]:
-            # nan 값이 0이므로 위해 offset은 1에서 출발한다
-            offset = 1
+        def obj2idx(df: pd.DataFrame, cols: list, offset: int = 1) -> tuple[pd.DataFrame, int]:
 
             # Transformer을 위한 categorical feature의 index를 구한다
             for col in cols:
@@ -104,9 +110,11 @@ class GTDataset(Dataset):
 
             return offset
                 
-        
-        cate_len = obj2idx(df, self.cate_cols)
-        node_len = obj2idx(df, self.node_cols)
+        ### nan 값은 0으로, dummy cate는 1 나머지는 2부터 시작하도록 한다
+        cate_len = obj2idx(df, self.cate_col_names, offset=2)
+
+        ### nan 값은 0, dummy user는 1, dummy item은 2부터 시작하도록 한다
+        node_len = obj2idx(df, self.node_col_names, offset=3)
 
         return cate_len, node_len
 
