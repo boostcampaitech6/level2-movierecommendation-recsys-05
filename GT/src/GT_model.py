@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 import numpy as np
+from torch_geometric.nn import MessagePassing
+from torch_geometric.utils import degree
 from torch_geometric.nn.models import LightGCN
 
 
@@ -9,36 +11,35 @@ class GTModel(nn.Module):
     def __init__(self, cfg):
         super(GTModel, self).__init__()
         self.seq_len = cfg.seq_len
-        seq_len, emb_size, hidden_size = cfg.seq_len, cfg.emb_size, cfg.hidden_size
+        emb_size, hidden_size = cfg.emb_size, cfg.hidden_size
 
-        total_col_size = cfg.cate_col_size + cfg.cont_col_size
-        total_col_hidden_size = hidden_size * 2
+        position_embedding = nn.Embedding(cfg.seq_len, emb_size)
+        self.position_emb = position_embedding(torch.arange(cfg.seq_len, dtype=torch.long).unsqueeze(0))    ####???
 
-        cate_col_hidden_size = int(cfg.cate_col_size / total_col_size * total_col_hidden_size)
-        cont_col_hidden_size = total_col_hidden_size - cate_col_hidden_size
-
-
-        position_embedding = nn.Embedding(seq_len, emb_size)
-        self.position_emb = position_embedding(torch.arange(seq_len, dtype=torch.long).unsqueeze(0))
+        # node
+        self.node_proj = nn.Sequential(
+            nn.Linear(emb_size * len(cfg.node_col_names), hidden_size),
+            nn.LayerNorm(hidden_size),
+        )
 
         # category
-        self.cate_emb = nn.Embedding(cfg.total_cate_size, emb_size, padding_idx=0)
+        self.cate_emb = nn.Embedding(cfg.cate_idx_len, emb_size, padding_idx=0)
         self.cate_proj = nn.Sequential(
-            nn.Linear(emb_size * cfg.cate_col_size, cate_col_hidden_size),
-            nn.LayerNorm(cate_col_hidden_size),
+            nn.Linear(emb_size * len(cfg.cate_col_names), hidden_size),
+            nn.LayerNorm(hidden_size),
         )
 
         # continuous
-        self.cont_bn = nn.BatchNorm1d(cfg.cont_col_size)
-        self.cont_emb = nn.Sequential(
-            nn.Linear(cfg.cont_col_size, cont_col_hidden_size),
-            nn.LayerNorm(cont_col_hidden_size),
+        self.cont_bn = nn.BatchNorm1d(len(cfg.cont_col_names))
+        self.cont_proj = nn.Sequential(
+            nn.Linear(len(cfg.cont_col_names), hidden_size),
+            nn.LayerNorm(hidden_size),
         )
 
         # combination
         self.comb_proj = nn.Sequential(
             nn.LeakyReLU(),
-            nn.Linear(hidden_size*4, hidden_size),
+            nn.Linear(hidden_size*3, hidden_size),
             nn.LayerNorm(hidden_size)
         )
         
@@ -49,28 +50,29 @@ class GTModel(nn.Module):
             nn.LayerNorm(hidden_size),
             nn.Dropout(cfg.dropout),
             nn.LeakyReLU(),
-            nn.Linear(hidden_size, cfg.target_size),
+            nn.Linear(hidden_size, hidden_size),
         )
         
-        
-    def forward(self, node, cate_x, cont_x, mask, query_index):        
-        batch_size = cate_x.size(0)
+    def forward(self, input: dict):
+        batch_size = input['cate'].size(0)
+
+        node_emb = self.node_proj(input['node'])
         
         # category
-        cate_emb = self.cate_emb(cate_x).view(batch_size, self.seq_len, -1)
+        cate_emb = self.cate_emb(input['cate']).view(batch_size, self.seq_len, -1)
         cate_emb = self.cate_proj(cate_emb)
 
         # continuous
-        cont_x = self.cont_bn(cont_x.view(-1, cont_x.size(-1))).view(batch_size, -1, cont_x.size(-1))
-        cont_emb = self.cont_emb(cont_x.view(batch_size, self.seq_len, -1))
+        cont_x = self.cont_bn(input['cont'].view(-1, input['cont'].size(-1))).view(batch_size, -1, input['cont'].size(-1))
+        cont_emb = self.cont_proj(cont_x.view(batch_size, self.seq_len, -1))
         
         # combination
-        seq_emb = torch.cat([node, cate_emb, cont_emb], 2)
+        seq_emb = torch.cat([node_emb, cate_emb, cont_emb], 2)
         seq_emb = self.comb_proj(seq_emb)
 
         seq_emb += self.position_emb
 
-        encoded = self.encoder(seq_emb, query_index, mask)
+        encoded = self.encoder(seq_emb, input['query_index'], input['mask'])
 
         output = self.reg_layer(encoded)
 
@@ -93,7 +95,6 @@ class Encoder(nn.Module):
         self.lin_Q = nn.Linear(self.d_feat, self.d_feat, USE_BIAS)
         self.lin_K = nn.Linear(self.d_feat, self.d_feat, USE_BIAS)
         self.lin_V = nn.Linear(self.d_feat, self.d_feat, USE_BIAS)
-        
 
     def forward(self, seq, query_index, mask=None):
         n_batch = seq.shape[0]
@@ -124,29 +125,26 @@ class Encoder(nn.Module):
         output = output.view(n_batch, -1, self.d_feat)
 
         return output
-
+    
 
 
 class CustomModel(nn.Module):
-    def __init__(self, node, cfg):
+    def __init__(self, cfg, node_interaction):
         super(CustomModel, self).__init__()
-        self.node = node
-        self.LGCN = LightGCN(num_nodes=cfg.node_size, embedding_dim=cfg.hidden_size, num_layers=cfg.hop)
+        LGCN = LightGCN(num_nodes=cfg.node_idx_len, embedding_dim=cfg.hidden_size, num_layers=cfg.hop).to(cfg.device)
+        self.node_embedding = LGCN.get_embedding(node_interaction)
 
-        self.GCNT = GTModel(cfg)
-
+        self.GT = GTModel(cfg)
 
     def forward(self, input, target: None):
-        node_embedding = self.LGCN.get_embedding(self.node)
+        node = self.node_embedding[input['node']]
+        input['node'] = node.view(node.size(0), node.size(1), -1)
 
-        node = node_embedding[input['node']]
-        node = node.view(node.size(0), node.size(1), -1)
-
-        output = self.GCNT(node, input["cate_feature"], input["cont_feature"], input["mask"])
+        output = self.GT(input)
 
         if target is None:
             return output
         else:
-            target = node_embedding[target]
+            target = self.node_embedding[target]
             
             return output, target

@@ -5,7 +5,7 @@
 "model_name" : "best_model.pt"
 "output_dir" : "./outputs/"
 
-"batch_size" : 256
+"batch_size" : 2
 "dropout" : 0.2
 "hidden_size" : 128
 "emb_size" : 128
@@ -16,6 +16,7 @@
 "n_epochs" : 5 
 "lr" : 0.001
 "min_seq" : 15
+"hop" : 3
 
 "node_col_names" :
 - "user"

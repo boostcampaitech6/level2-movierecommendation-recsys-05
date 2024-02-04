@@ -1,21 +1,21 @@
-import os
 import unittest
 from src.GT_dataset import GTDataset
 import pandas as pd
-from src.utils import CFG
+from src.utils import *
 
 
+logger = get_logger(logger_conf=logging_conf)
 
-class test_dataset(unittest.TestCase):
+
+class test_datasets(unittest.TestCase):
     def setUp(self):
-        df = pd.read_csv('test/data/train_ratings.csv')
-        cfg = CFG('test/test_model.yaml')
+        self.df = pd.read_csv('test/data/train_ratings.csv')
+        self.cfg = CFG('test/test_model.yaml')
 
-        self.ds = GTDataset(df, cfg)
-
-    def test_dataset(self):
-        item = self.ds[2]
-        print(item)
+    def test_GTdataset(self):
+        ds = GTDataset(self.df, self.cfg)
+        item = ds[2]
+        logger.info(item)
         assert()
 
 

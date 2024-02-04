@@ -1,32 +1,34 @@
-import os
 import unittest
+from src.GT_dataset import GTDataset
+from src.GT_model import CustomModel
+import pandas as pd
+from src.utils import *
+from torch.utils.data import DataLoader
+import torch
+import torch.nn as nn
 
-current_path = os.path.dirname(os.path.realpath(__file__))
-config_file_list = [os.path.join(current_path, 'test_model.yaml')]
 
-
-def quick_test(config_dict):
-    objective_function(config_dict=config_dict, config_file_list=config_file_list, saved=False)
+logger = get_logger(logger_conf=logging_conf)
 
 
 class TestGeneralRecommender(unittest.TestCase):
-    def test_lightgcn(self):
-        config_dict = {
-            'model': 'LightGCN',
-        }
-        quick_test(config_dict)
+    def setUp(self):
+        self.df = pd.read_csv('test/data/train_ratings.csv')
+        self.cfg = CFG('test/test_model.yaml')
 
-    def test_transformer(self):
-        config_dict = {
-            'model': 'TransformerModel',
-        }
-        quick_test(config_dict)
+    def test_GTmodel(self):
+        dataset = GTDataset(self.df, self.cfg)
+        self.cfg.cate_idx_len, self.cfg.node_idx_len, node_interaction = dataset.get_att()
 
-    def test_custom_model(self):
-        config_dict = {
-            'model': 'CustomModel',
-        }
-        quick_test(config_dict)
+        model = CustomModel(self.cfg, node_interaction).to(self.cfg.device)
+        model.train()
+        # logger.info(list(model.named_parameters()))
+
+        loader = DataLoader(dataset, batch_size=self.cfg.batch_size, shuffle=True)
+
+        for data, target in loader:
+            output = model(data, target)
+            logger.info(target, output)
 
 
 if __name__ == '__main__':

@@ -12,27 +12,25 @@ class GTDataset(Dataset):
 
         self.max_seq_len = cfg.seq_len
         self.target_len = cfg.target_len 
+        self.device = cfg.device
 
         ### 각 종류의 feature들의 이름을 저장한다
         self.node_col_names = cfg.node_col_names
         self.cate_col_names = cfg.cate_col_names
-        self.cont_col_names = cfg.cont_col_names
         
-        self.cate_len, self.node_len = self._get_indexing_data(self.df)
+        self.cate_idx_len, self.node_idx_len = self._get_indexing_data(self.df)
+        self.node_interaction = self.get_node_interaction(self.df, cfg.node_col_names)
         self.u_start_end = self._get_u_start_end(self.df, cfg.min_seq)
         self.len = len(self.u_start_end)
 
         ### 각 종류의 feature들에 대응하는 query, key를 만들기 위한 정보를 저장한다
         self.ingredients = {
-            'names'       : ('node',                              'cate',                                 'cont'),
-            'dtypes'      : (torch.int32,                         torch.int32,                            torch.float16),
-            'defaults'    : ((0, 1),                              1,                                      1.0),
-            'lengths'     : (len(self.node_col_names),            len(self.cate_col_names),               len(self.cont_col_names)),
-            'datas'       : (self.df[self.node_col_names].values, self.df[self.cate_col_names].values,    self.df[self.cont_col_names].values),
+            'names'       : ('node',                                'cate',                             'cont'),
+            'dtypes'      : (torch.int32,                           torch.int32,                        torch.float32),
+            'defaults'    : ((0, 1),                                1,                                  1.0),
+            'lengths'     : (len(cfg.node_col_names),               len(cfg.cate_col_names),            len(cfg.cont_col_names)),
+            'datas'       : (self.df[cfg.node_col_names].values,    self.df[cfg.cate_col_names].values, self.df[cfg.cont_col_names].values),
         }
-
-        self.device = cfg.device
-
 
     def __getitem__(self, idx):
         start, end = self.u_start_end[idx]
@@ -55,7 +53,7 @@ class GTDataset(Dataset):
                 seq[-seq_len:] = temp
                 seq[query_index] = torch.tensor(default, dtype=dtype)
 
-                output[f'{name}_seq'] = seq
+                output[f'{name}'] = seq
 
             output['query_index'] = query_index
 
@@ -65,9 +63,8 @@ class GTDataset(Dataset):
             output['mask'] = mask
 
             target = torch.tensor(self.df[self.node_col_names].values[target_idx, 1], dtype=torch.int32)
-            output['target'] = target
 
-        return output
+        return output, target
     
 
     def _get_u_start_end(self, df: pd.DataFrame, min_seq: int) -> list:
@@ -107,20 +104,21 @@ class GTDataset(Dataset):
             return offset
                 
         ### nan 값은 0으로, dummy cate는 1 나머지는 2부터 시작하도록 한다
-        cate_len = obj2idx(df, self.cate_col_names, offset=2)
+        cate_idx_len = obj2idx(df, self.cate_col_names, offset=2)
 
         ### nan 값은 0, dummy user는 1, dummy item은 2부터 시작하도록 한다
-        node_len = obj2idx(df, self.node_col_names, offset=3)
+        node_idx_len = obj2idx(df, self.node_col_names, offset=3)
 
-        return cate_len, node_len
+        return cate_idx_len, node_idx_len
+    
+    def get_node_interaction(self, df, node_col_names):
+        node_interaction = df[node_col_names].transpose().values
+        node_interaction = torch.tensor(node_interaction, dtype=torch.int64).to(self.device)
 
+        return node_interaction
 
     def get_att(self):
-        return {'node'              : self.cate_len, 
-                'node_len'          : self.node_len, 
-                'user_start_end'    : self.u_start_end,
-                }
-        
+        return self.cate_idx_len, self.node_idx_len, self.node_interaction
         
     def __len__(self):
         return self.len
