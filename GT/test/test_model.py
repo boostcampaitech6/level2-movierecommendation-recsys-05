@@ -16,7 +16,7 @@ class TestGeneralRecommender(unittest.TestCase):
 
     def test_GTmodel(self):
         dataset = GTDataset(self.df, self.cfg)
-        self.cfg.cate_idx_len, self.cfg.node_idx_len, node_interaction = dataset.get_att()
+        self.cfg.cate_idx_len, self.cfg.node_idx_len, node_interaction, item_len = dataset.get_att()
 
         model = CustomModel(self.cfg, node_interaction).to(self.cfg.device)
         model.train()

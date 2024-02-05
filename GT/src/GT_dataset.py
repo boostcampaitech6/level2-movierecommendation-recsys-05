@@ -19,6 +19,7 @@ class GTDataset(Dataset):
         self.cate_col_names = cfg.cate_col_names
         
         self.cate_idx_len, self.node_idx_len = self._get_indexing_data(self.df)
+        self.item_len = len(df['item'].unique())
         self.node_interaction = self.get_node_interaction(self.df, cfg.node_col_names)
         self.u_start_end = self._get_u_start_end(self.df, cfg.min_seq)
         self.len = len(self.u_start_end)
@@ -105,7 +106,7 @@ class GTDataset(Dataset):
         ### nan 값은 0으로, dummy cate는 1 나머지는 2부터 시작하도록 한다
         cate_idx_len = obj2idx(df, self.cate_col_names, offset=2)
 
-        ### nan 값은 0, dummy user는 1, dummy item은 2부터 시작하도록 한다
+        ### nan 값은 0, dummy user는 1, dummy item은 2로 나머지는 3부터 시작하도록 한다
         node_idx_len = obj2idx(df, self.node_col_names, offset=3)
 
         return cate_idx_len, node_idx_len
@@ -117,7 +118,7 @@ class GTDataset(Dataset):
         return node_interaction
 
     def get_att(self):
-        return self.cate_idx_len, self.node_idx_len, self.node_interaction
+        return self.cate_idx_len, self.node_idx_len, self.node_interaction, self.item_len
         
     def __len__(self):
         return self.len

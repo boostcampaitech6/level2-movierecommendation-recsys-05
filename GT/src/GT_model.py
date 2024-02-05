@@ -148,7 +148,7 @@ class CustomModel(nn.Module):
         output = self.GT(input)
 
         if target is None:
-            return output
+            return output, node_embedding
         else:
             target = node_embedding[target]
             return output, target
