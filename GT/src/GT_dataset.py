@@ -42,7 +42,7 @@ class GTDataset(Dataset):
         target_idx = np.random.choice(range(seq_len), 10, replace=False)
         target_idx = np.sort(target_idx)
         
-        query_index = target_idx + self.max_seq_len - seq_len
+        query_idx = target_idx + self.max_seq_len - seq_len
         output = {}
 
         with torch.device(self.device):
@@ -51,15 +51,14 @@ class GTDataset(Dataset):
 
                 seq = torch.zeros(self.max_seq_len, length, dtype=dtype)
                 seq[-seq_len:] = temp
-                seq[query_index] = torch.tensor(default, dtype=dtype)
+                seq[query_idx] = torch.tensor(default, dtype=dtype)
 
                 output[f'{name}'] = seq
 
-            output['query_index'] = query_index
+            output['query_idx'] = torch.tensor(query_idx, dtype=torch.int64)
 
-            mask = torch.zeros(self.max_seq_len, dtype=torch.bool)
-            mask[:-seq_len] = True
-            mask[query_index] = True    
+            mask = torch.ones(self.max_seq_len, dtype=torch.bool)
+            mask[query_idx] = False  
             output['mask'] = mask
 
             target = torch.tensor(self.df[self.node_col_names].values[target_idx, 1], dtype=torch.int32)

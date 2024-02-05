@@ -11,10 +11,11 @@ class GTModel(nn.Module):
     def __init__(self, cfg):
         super(GTModel, self).__init__()
         self.seq_len = cfg.seq_len
+        self.device = cfg.device
         emb_size, hidden_size = cfg.emb_size, cfg.hidden_size
 
-        position_embedding = nn.Embedding(cfg.seq_len, emb_size)
-        self.position_emb = position_embedding(torch.arange(cfg.seq_len, dtype=torch.long).unsqueeze(0))    ####???
+        self.position_embedding = nn.Embedding(cfg.seq_len, emb_size)
+        self.register_buffer('position_ids', torch.arange(cfg.seq_len).unsqueeze(0))
 
         # node
         self.node_proj = nn.Sequential(
@@ -70,11 +71,13 @@ class GTModel(nn.Module):
         seq_emb = torch.cat([node_emb, cate_emb, cont_emb], 2)
         seq_emb = self.comb_proj(seq_emb)
 
-        seq_emb += self.position_emb
+        seq_emb = seq_emb + self.position_embedding(self.position_ids.to(self.device))
 
-        encoded = self.encoder(seq_emb, input['query_index'], input['mask'])
+        encoded = self.encoder(seq_emb, input['mask'])
 
-        output = self.reg_layer(encoded)
+        selected = torch.gather(input=encoded, dim=1, index=input['query_idx'].unsqueeze(-1).expand(-1, -1, encoded.size(-1)))
+
+        output = self.reg_layer(selected)
 
         return output
 
@@ -96,33 +99,33 @@ class Encoder(nn.Module):
         self.lin_K = nn.Linear(self.d_feat, self.d_feat, USE_BIAS)
         self.lin_V = nn.Linear(self.d_feat, self.d_feat, USE_BIAS)
 
-    def forward(self, seq, query_index, mask=None):
-        n_batch = seq.shape[0]
-
-        query = seq[query_index].contiguous()
-        key = seq[np.setdiff1d(np.arange(self.seq_len), query_index)].contiguous()
+    def forward(self, seq, mask):
+        batch_size = seq.size(0)
         
-        Q = self.lin_Q(query)
-        K = self.lin_K(key)
-        V = self.lin_V(key)
+        Q = self.lin_Q(seq)
+        K = self.lin_K(seq)
+        V = self.lin_V(seq)
 
-        Q = Q.view(n_batch, -1, self.n_head, self.d_head)
-        K = K.view(n_batch, -1, self.n_head, self.d_head)
-        V = V.view(n_batch, -1, self.n_head, self.d_head)
+        Q = Q.view(batch_size, -1, self.n_head, self.d_head)
+        K = K.view(batch_size, -1, self.n_head, self.d_head)
+        V = V.view(batch_size, -1, self.n_head, self.d_head)
 
         Q = Q.transpose(1, 2)
         K = K.transpose(1, 2)
         V = V.transpose(1, 2)
  
         scores = torch.matmul(Q, K.transpose(-1, -2)) / self.sq_d_k 
-        if mask is not None:
-            mask = mask.unsqueeze(1).unsqueeze(2).expand_as(scores)
-            scores = scores.masked_fill(mask, -1e+9)
+
+        mask_expanded = mask.unsqueeze(1).unsqueeze(3).expand_as(scores) ### query mask
+        scores = scores.masked_fill(mask_expanded, -1e+9)
+        mask_expanded = mask.unsqueeze(1).unsqueeze(2).expand_as(scores) ### key mask
+        scores = scores.masked_fill(~mask_expanded, -1e+9)
+        
         attention = torch.softmax(scores, dim=-1)
         output = torch.matmul(self.dropout(attention), V) 
 
         output = output.transpose(1, 2).contiguous()
-        output = output.view(n_batch, -1, self.d_feat)
+        output = output.view(batch_size, -1, self.d_feat)
 
         return output
     
@@ -137,6 +140,7 @@ class CustomModel(nn.Module):
         self.GT = GTModel(cfg)
 
     def forward(self, input, target: None):
+        print(self.node_embedding)
         node = self.node_embedding[input['node']]
         input['node'] = node.view(node.size(0), node.size(1), -1)
 

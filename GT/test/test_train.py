@@ -4,6 +4,8 @@ from src.GT_model import CustomModel
 import pandas as pd
 from src.utils import *
 from torch.utils.data import DataLoader
+import torch
+import torch.nn as nn
 
 
 logger = get_logger(logger_conf=logging_conf)
@@ -21,11 +23,21 @@ class TestGeneralRecommender(unittest.TestCase):
         model = CustomModel(self.cfg, node_interaction).to(self.cfg.device)
         model.train()
 
+        optimizer = torch.optim.Adam(params=model.parameters(), lr=self.cfg.lr)
+        loss_fun = nn.CosineEmbeddingLoss()
+
         loader = DataLoader(dataset, batch_size=self.cfg.batch_size, shuffle=True)
 
         for data, target in loader:
+            optimizer.zero_grad()
             output, embedded_target = model(data, target)
-            unittest.TestCase().assertEqual(list(output.shape), list(embedded_target.shape))
+
+            loss = loss_fun(output.view(-1, output.shape[-1]), embedded_target.view(-1, output.shape[-1]), torch.ones(1, device=self.cfg.device))
+            print(loss)
+            loss.backward()
+            optimizer.step()
+
+        assert()
             
 
 
