@@ -134,14 +134,15 @@ class Encoder(nn.Module):
 class CustomModel(nn.Module):
     def __init__(self, cfg, node_interaction):
         super(CustomModel, self).__init__()
-        LGCN = LightGCN(num_nodes=cfg.node_idx_len, embedding_dim=cfg.hidden_size, num_layers=cfg.hop).to(cfg.device)
-        self.node_embedding = LGCN.get_embedding(node_interaction)
+        self.LGCN = LightGCN(num_nodes=cfg.node_idx_len, embedding_dim=cfg.hidden_size, num_layers=cfg.hop).to(cfg.device)
+        self.node_interaction = node_interaction
 
         self.GT = GTModel(cfg)
 
     def forward(self, input, target: None):
-        print(self.node_embedding)
-        node = self.node_embedding[input['node']]
+        ### node 임베딩
+        node_embedding = self.LGCN.get_embedding(self.node_interaction)
+        node = node_embedding[input['node']]
         input['node'] = node.view(node.size(0), node.size(1), -1)
 
         output = self.GT(input)
@@ -149,6 +150,5 @@ class CustomModel(nn.Module):
         if target is None:
             return output
         else:
-            target = self.node_embedding[target]
-            
+            target = node_embedding[target]
             return output, target

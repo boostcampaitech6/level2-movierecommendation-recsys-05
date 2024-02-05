@@ -14,7 +14,7 @@ logger = get_logger(logger_conf=logging_conf)
 class TestGeneralRecommender(unittest.TestCase):
     def setUp(self):
         self.df = pd.read_csv('test/data/train_ratings.csv')
-        self.cfg = CFG('test/test_model.yaml')
+        self.cfg = CFG('test/test.yaml')
 
     def test_GTmodel(self):
         dataset = GTDataset(self.df, self.cfg)
@@ -33,7 +33,6 @@ class TestGeneralRecommender(unittest.TestCase):
             output, embedded_target = model(data, target)
 
             loss = loss_fun(output.view(-1, output.shape[-1]), embedded_target.view(-1, output.shape[-1]), torch.ones(1, device=self.cfg.device))
-            print(loss)
             loss.backward()
             optimizer.step()
 

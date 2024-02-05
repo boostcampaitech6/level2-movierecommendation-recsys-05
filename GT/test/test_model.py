@@ -12,7 +12,7 @@ logger = get_logger(logger_conf=logging_conf)
 class TestGeneralRecommender(unittest.TestCase):
     def setUp(self):
         self.df = pd.read_csv('test/data/train_ratings.csv')
-        self.cfg = CFG('test/test_model.yaml')
+        self.cfg = CFG('test/test.yaml')
 
     def test_GTmodel(self):
         dataset = GTDataset(self.df, self.cfg)
