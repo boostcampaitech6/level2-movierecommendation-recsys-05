@@ -139,9 +139,10 @@ class CustomModel(nn.Module):
 
         self.GT = GTModel(cfg)
 
-    def forward(self, input, target: None):
+    def forward(self, input, target=None):
         ### node 임베딩
         node_embedding = self.LGCN.get_embedding(self.node_interaction)
+        
         node = node_embedding[input['node']]
         input['node'] = node.view(node.size(0), node.size(1), -1)
 

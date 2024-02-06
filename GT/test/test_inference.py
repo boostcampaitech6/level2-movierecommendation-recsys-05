@@ -18,21 +18,26 @@ class TestGeneralRecommender(unittest.TestCase):
 
     def test_GTmodel(self):
         dataset = GTDataset(self.df, self.cfg)
+        self.cfg.cate_idx_len, self.cfg.node_idx_len, node_interaction, item_len, node_idx2obj = dataset.get_att()
         loader = DataLoader(dataset, batch_size=self.cfg.batch_size, shuffle=True)
-        self.cfg.cate_idx_len, self.cfg.node_idx_len, node_interaction, item_len = dataset.get_att()
 
         model = CustomModel(self.cfg, node_interaction).to(self.cfg.device)
 
         model.eval()
         with torch.no_grad():
-            for data in loader:
+            for data, _ in loader:
                 output, node_embedding = model(data)
+              
+                cosine_similarities = batch_cosine_similarity(node_embedding[-item_len:], output)
+                closest_idx = torch.argmax(cosine_similarities, dim=-1)
+                closest_idx = len(node_embedding) - item_len + closest_idx
                 
-                distances = torch.norm(node_embedding[-item_len:] - output, dim=1) ### loss는 cosine으로 줄이고 inference는 euclidean으로 하는것은 이상하다
-                closest_idx = torch.argmin(distances)             
+                item_id = node_idx2obj[closest_idx]
+                print(item_id)
+                assert()
 
         assert()
-            
+
 
 
 if __name__ == '__main__':

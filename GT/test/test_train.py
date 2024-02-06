@@ -28,6 +28,8 @@ class TestGeneralRecommender(unittest.TestCase):
 
         model.train()
         for data, target in loader:
+            print(type(data))
+
             optimizer.zero_grad()
             output, embedded_target = model(data, target)
 
