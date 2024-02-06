@@ -18,7 +18,8 @@ class GTDataset(Dataset):
         self.node_col_names = cfg.node_col_names
         self.cate_col_names = cfg.cate_col_names
         
-        self.cate_idx_len, self.node_idx_len, self.node_idx2obj = self._get_indexing_data(self.df)
+        self.cate_idx_len, self.node_idx_len, node_idx2obj = self._get_indexing_data(self.df)
+        self.node_idx2obj = torch.tensor(node_idx2obj, dtype=torch.int64, device=self.cfg.device)
         self.item_len = len(df['item'].unique())
         self.node_interaction = self.get_node_interaction(self.df, cfg.node_col_names)
         self.u_start_end = self._get_u_start_end(self.df, cfg.min_seq)
@@ -30,8 +31,8 @@ class GTDataset(Dataset):
             'dtypes'      : (torch.int32,                           torch.int32,                        torch.float32),
             'defaults'    : ((0, 1),                                1,                                  1.0),
             'lengths'     : (len(cfg.node_col_names),               len(cfg.cate_col_names),            len(cfg.cont_col_names)),
-            'datas'       : (self.df[cfg.node_col_names].values,    self.df[cfg.cate_col_names].values, self.df[cfg.cont_col_names].values),
         }
+    
 
     def __getitem__(self, idx):
         start, end = self.u_start_end[idx]
@@ -39,23 +40,32 @@ class GTDataset(Dataset):
         start = max(end - self.max_seq_len, start)
         seq_len = end - start
 
-        ### target은 10개의 item을 랜덤으로 선택한다.
-        target_idx = np.random.choice(range(seq_len), 10, replace=False)
+        ### target은 self.target_len개의 item을 랜덤으로 선택한다.
+        target_idx = np.random.choice(range(seq_len), self.target_len, replace=False)
         target_idx = np.sort(target_idx)
-        
+
         query_idx = target_idx + self.max_seq_len - seq_len
+
         output = {}
 
         with torch.device(self.device):
-            for name, dtype, default, length, data in zip(*[self.ingredients[key] for key in self.ingredients.keys()]):
-                temp = torch.tensor(data[start:end], dtype=dtype)
+            data = self.df.values
+            data = torch.tensor(data[start:end], dtype=dtype)
 
+            if self.infer is None:
+                pass
+            else:
+                query_idx = query_idx[::-1]
+                for index in query_idx:
+                    temp = torch.cat((temp[:index], default, temp[index:]), 0)
+            
+            for name, dtype, default, length in zip(*[self.ingredients[key] for key in self.ingredients.keys()]):
                 seq = torch.zeros(self.max_seq_len, length, dtype=dtype)
-                seq[-seq_len:] = temp
+                seq[-seq_len:] = data[:,length]
                 seq[query_idx] = torch.tensor(default, dtype=dtype)
 
                 output[f'{name}'] = seq
-
+                    
             output['query_idx'] = torch.tensor(query_idx, dtype=torch.int64)
 
             mask = torch.ones(self.max_seq_len, dtype=torch.bool)
@@ -65,20 +75,12 @@ class GTDataset(Dataset):
             target = torch.tensor(self.df[self.node_col_names].values[target_idx, 1], dtype=torch.int32)
 
         return output, target
-    
 
-    def _get_u_start_end(self, df: pd.DataFrame, min_seq: int) -> list:
-        u_s_e = df.reset_index().groupby('user')['index']
-        u_s_e = u_s_e.apply(lambda x: (x.min(), x.max()))
-        u_s_e = [(min, i) for min, max in u_s_e for i in range(min + min_seq, max + 1)]
-
-        return u_s_e
-    
 
     def _get_indexing_data(self, df: pd.DataFrame) -> tuple[pd.DataFrame, int, int]:
         
         def obj2idx(df: pd.DataFrame, cols: list, offset: int = 1) -> tuple[pd.DataFrame, int]:
-            idx2obj = [None for _ in range(offset)]
+            idx2obj = [-1 for _ in range(offset)]
 
             # Transformer을 위한 categorical feature의 index를 구한다
             for col in cols:
@@ -113,14 +115,25 @@ class GTDataset(Dataset):
 
         return cate_idx_len, node_idx_len, node_idx2obj
     
+
+    def _get_u_start_end(self, df: pd.DataFrame, min_seq: int) -> list:
+        u_s_e = df.reset_index().groupby('user')['index']
+        u_s_e = u_s_e.apply(lambda x: (x.min(), x.max()))
+        u_s_e = [(min, i) for min, max in u_s_e for i in range(min + min_seq, max + 1)]
+
+        return u_s_e
+
+
     def get_node_interaction(self, df, node_col_names):
         node_interaction = df[node_col_names].transpose().values
         node_interaction = torch.tensor(node_interaction, dtype=torch.int64).to(self.device)
 
         return node_interaction
 
+
     def get_att(self):
         return self.cate_idx_len, self.node_idx_len, self.node_interaction, self.item_len, self.node_idx2obj
         
+
     def __len__(self):
         return self.len

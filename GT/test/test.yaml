@@ -1,5 +1,6 @@
 "device" : "cuda"
 "seed" : 7
+"infer" : False
 
 "model_dir" : "./models/"
 "model_name" : "best_model.pt"
