@@ -2,16 +2,33 @@
 
 train_path: '/data/ephemeral/input/data/train/'
 eval_path: '/data/ephemeral/input/data/eval/'
-save: 'model.pt'
+save: '/data/ephemeral/VAES/models/model_RecVAE.pt'
 dataset: 'train_ratings.csv'
 
 seed: 42
 heldout_users: 3000
 
-lr: 0.001
+# lr: 0.001
 epochs: 20
-wd: 0.0
-batch_size: 500
-total_anneal_steps: 200000
-anneal_cap: 0.2
-log_interval: 100
+# wd: 0.0
+# batch_size: 500
+# total_anneal_steps: 200000
+# anneal_cap: 0.2
+# log_interval: 100
+
+hidden_dim: 600
+latent_dim: 200
+dropout: 0.5
+gamma: 0.005
+beta: None
+not_alternating: True
+e_num_epochs: 3
+d_num_epochs: 1
+
+lr: 5e-4
+batch_size: 128
+num_epochs: 50
+num_workers: 2
+
+valid_samples: 10
+
