@@ -1,0 +1,26 @@
+# Saved models
+/saved*
+*.pth
+.github/
+.vscode/
+.idea/
+*.pyc
+*.log
+log_tensorboard
+saved/
+*.lprof
+*.egg-info/
+docs/build/
+wandb/*
+/ray_log*
+asset
+conda
+dataset/ml-100k
+dataset/movierec
+dataset/kg_url.yaml
+docs
+log
+output
+run_example
+tests
+recbole/dataset_example/
