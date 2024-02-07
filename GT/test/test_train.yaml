@@ -1,0 +1,31 @@
+"device" : "cuda"
+"seed" : 7
+"inference" : False
+
+"model_dir" : "./models/"
+"model_name" : "best_model.pt"
+"output_dir" : "./outputs/"
+
+"batch_size" : 2
+"dropout" : 0.2
+"hidden_size" : 8
+"emb_size" : 8
+"n_layers" : 1
+"n_head" : 8
+"seq_len" : 32
+"target_len" : 10
+"n_epochs" : 5 
+"lr" : 0.001
+"min_seq" : 15
+"hop" : 3
+
+"node_col_names" :
+- "user"
+- "item"
+
+"cate_col_names" :
+- "test_a"
+
+"cont_col_names" :
+- "test_b"
+

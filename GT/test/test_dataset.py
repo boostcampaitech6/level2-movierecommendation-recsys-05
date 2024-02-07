@@ -10,12 +10,11 @@ logger = get_logger(logger_conf=logging_conf)
 class test_datasets(unittest.TestCase):
     def setUp(self):
         self.df = pd.read_csv('test/data/train_ratings.csv')
-        self.cfg = CFG('test/test.yaml')
+        self.cfg = CFG('test/test_train.yaml')
 
     def test_GTdataset(self):
         ds = GTDataset(self.df, self.cfg)
         item = ds[2]
-        logger.info(item)
         assert()
 
 
