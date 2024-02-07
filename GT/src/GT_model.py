@@ -7,9 +7,9 @@ from torch_geometric.nn.models import LightGCN
 
 
 
-class GTModel(nn.Module):
+class TransformerModel(nn.Module):
     def __init__(self, cfg):
-        super(GTModel, self).__init__()
+        super(TransformerModel, self).__init__()
         self.seq_len = cfg.seq_len
         self.device = cfg.device
         emb_size, hidden_size = cfg.emb_size, cfg.hidden_size
@@ -131,13 +131,13 @@ class Encoder(nn.Module):
     
 
 
-class CustomModel(nn.Module):
+class GTModel(nn.Module):
     def __init__(self, cfg, node_interaction):
-        super(CustomModel, self).__init__()
+        super(GTModel, self).__init__()
         self.LGCN = LightGCN(num_nodes=cfg.node_idx_len, embedding_dim=cfg.hidden_size, num_layers=cfg.hop).to(cfg.device)
         self.node_interaction = node_interaction
 
-        self.GT = GTModel(cfg)
+        self.transformer = TransformerModel(cfg)
 
     def forward(self, input, target=None):
         ### node 임베딩
@@ -146,7 +146,7 @@ class CustomModel(nn.Module):
         node = node_embedding[input['node']]
         input['node'] = node.view(node.size(0), node.size(1), -1)
 
-        output = self.GT(input)
+        output = self.transformer(input)
 
         if target is None:
             return output, node_embedding

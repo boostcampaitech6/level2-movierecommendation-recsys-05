@@ -30,7 +30,7 @@ class GTDataset(Dataset):
         self.ingredients = {
             'names'       : ('node',                                'cate',                             'cont'),
             'dtypes'      : (torch.int32,                           torch.int32,                        torch.float32),
-            'defaults'    : ((0, 1),                                1,                                  1.0),
+            'defaults'    : ((0, 1),                                [1] * len(cfg.cate_col_names),      [1.0] * len(cfg.cont_col_names)),
             'lengths'     : (len(cfg.node_col_names),               len(cfg.cate_col_names),            len(cfg.cont_col_names)),
             'datas'       : (self.df[cfg.node_col_names].values,    self.df[cfg.cate_col_names].values, self.df[cfg.cont_col_names].values),
         }

@@ -1,6 +1,6 @@
 import unittest
 from src.GT_dataset import GTDataset
-from src.GT_model import CustomModel
+from src.GT_model import GTModel
 import pandas as pd
 from src.utils import *
 from torch.utils.data import DataLoader
@@ -21,7 +21,7 @@ class TestGeneralRecommender(unittest.TestCase):
         self.cfg.cate_idx_len, self.cfg.node_idx_len, node_interaction, item_len= dataset.get_att()
         loader = DataLoader(dataset, batch_size=self.cfg.batch_size, shuffle=True)
 
-        model = CustomModel(self.cfg, node_interaction).to(self.cfg.device)
+        model = GTModel(self.cfg, node_interaction).to(self.cfg.device)
 
         optimizer = torch.optim.Adam(params=model.parameters(), lr=self.cfg.lr)
         loss_fun = nn.CosineEmbeddingLoss()
