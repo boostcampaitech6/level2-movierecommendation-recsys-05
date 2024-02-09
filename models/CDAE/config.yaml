@@ -1,0 +1,11 @@
+# yaml file for CDAE model
+
+seed: 42
+DATA_DIR: '/data/ephemeral/input/data/train/'
+data: 'train_ratings.csv'
+# device: False
+batch_size: 126
+corruption_ratio: 0.5
+num_hidden_units: 250
+n_epochs: 80
+learning_rate: 0.001
