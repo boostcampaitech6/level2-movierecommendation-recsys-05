@@ -1,0 +1,6 @@
+seed: 42
+FOLD_SIZE: 3000
+NUM_TOP_PROBLEMS: 10
+
+DATA_DIR: '/data/ephemeral/input/data/train/'
+data: 'train_ratings.csv'
