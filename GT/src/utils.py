@@ -2,16 +2,6 @@ import torch
 import torch.nn as nn
 
 
-
-def get_logger(logger_conf: dict):
-    import logging
-    import logging.config
-
-    logging.config.dictConfig(logger_conf)
-    logger = logging.getLogger()
-    return logger
-
-
 logging_conf = {  # only used when 'user_wandb==False'
     "version": 1,
     "formatters": {
@@ -34,6 +24,14 @@ logging_conf = {  # only used when 'user_wandb==False'
     "root": {"level": "INFO", "handlers": ["console", "file_handler"]},
 }
 
+
+def get_logger(logger_conf: dict = logging_conf):
+    import logging
+    import logging.config
+
+    logging.config.dictConfig(logger_conf)
+    logger = logging.getLogger()
+    return logger
 
 
 class CFG:
@@ -58,7 +56,6 @@ class CFG:
             setattr(self, key, value)
 
 
-
 class CosineScalarLoss(nn.Module):
     def __init__(self, cfg):
         super(CosineScalarLoss, self).__init__()
@@ -78,8 +75,6 @@ class CosineScalarLoss(nn.Module):
         l2_loss = absub / (absub + self.l2_param)
 
         return cos_loss + l2_loss
-    
-
 
 
 def batch_cosine_similarity(embedding_matrix, vectors):
@@ -101,3 +96,25 @@ def batch_cosine_similarity(embedding_matrix, vectors):
     cosine_similarity = torch.matmul(vectors_norm, embedding_matrix_norm.t())
     
     return cosine_similarity
+
+
+def parse_cfg(file: str) -> CFG:
+    args = parse_args()
+    cfg = CFG(file)
+
+    for key, value in vars(args).items():
+        if value is not None:  # 명령줄에서 제공된 인자만 업데이트
+            setattr(cfg, key, value)
+
+    return cfg
+
+
+def set_seeds(seed: int = 42):
+    # 랜덤 시드를 설정하여 매 코드를 실행할 때마다 동일한 결과를 얻게 합니다.
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+    
