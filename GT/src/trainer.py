@@ -2,7 +2,6 @@ import os
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import accuracy_score, roc_auc_score
 import torch
 from torch import nn
 from .model import GTModel
@@ -17,13 +16,10 @@ from .utils import get_logger, logging_conf
 logger = get_logger(logger_conf=logging_conf)
 
 
-def build(merged_node, cfg):
-    model = GTModel(merged_node, cfg)
+def build(cfg, node_interaction):
+    model = GTModel(cfg, node_interaction)
 
-    if cfg.train:
-        pass
-
-    else:
+    if cfg.inference:
         model_path = os.path.join(cfg.model_dir, cfg.model_name)
         model_state = torch.load(model_path)
         model.load_state_dict(model_state["model"])
@@ -33,105 +29,49 @@ def build(merged_node, cfg):
     return model
 
 
-def run(model: nn.Module, train, valid, cfg):
-    model_dir=cfg.model_dir
-    os.makedirs(name=model_dir, exist_ok=True)
-
-    train_data = GTDataset(train, cfg)
-    valid_data = GTDataset(valid, cfg)
-
-    train_loader = DataLoader(train_data, batch_size=cfg.batch_size, shuffle=True)
-    valid_loader = DataLoader(valid_data, batch_size=cfg.batch_size, shuffle=True)
-
-    n_epochs=cfg.n_epochs
-    learning_rate=cfg.lr
-    optimizer = torch.optim.Adam(params=model.parameters(), lr=learning_rate)
-    loss_fun = nn.CosineEmbeddingLoss()
-
-    logger.info(f"Training Started : n_epochs={n_epochs}")
-    best_auc, best_epoch = 0, -1
-    for e in range(n_epochs):
-        logger.info("Epoch: %s", e)
-        # TRAIN
-        train_auc, train_acc, train_loss = train(train_loader=train_loader, model=model, optimizer=optimizer, loss_fun=loss_fun)
-    
-        # VALID
-        auc, acc = validate(model=model, valid_loader=valid_loader)
-
-        wandb.log(dict(train_loss_epoch=train_loss,
-                       train_acc_epoch=train_acc,
-                       train_auc_epoch=train_auc,
-                       valid_acc_epoch=acc,
-                       valid_auc_epoch=auc))
-
-        if auc > best_auc:
-            logger.info("Best model updated AUC from %.4f to %.4f", best_auc, auc)
-            best_auc, best_epoch = auc, e
-            torch.save(obj= {"model": model.state_dict(), "epoch": e + 1},
-                       f=os.path.join(model_dir, f"best_model.pt"))
-            
-    torch.save(obj={"model": model.state_dict(), "epoch": e + 1},
-               f=os.path.join(model_dir, f"last_model.pt"))
-    
-    logger.info(f"Best Weight Confirmed : {best_epoch+1}'th epoch")
-
-
-def train(model: nn.Module, train_loader, optimizer: torch.optim.Optimizer, loss_fun):
+def train(model: nn.Module, train_loader, optimizer: torch.optim.Optimizer, loss_fun, cfg):
     model.train()
     total_loss = 0.0
-    target_list = []
-    output_list = []
 
-    for data in tqdm(train_loader, mininterval=1):
+    for data, target in tqdm(train_loader, mininterval=1):
         
         optimizer.zero_grad()
-        output = model(data)
+        output, embedded_target = model(data, target)
 
-        loss = loss_fun(output, data['target'])
+        loss = loss_fun(output.view(-1, output.shape[-1]), embedded_target.view(-1, output.shape[-1]), torch.ones(1, device=cfg.device))
         loss.backward()
         optimizer.step()
 
         total_loss += loss.item()
-        target_list.append(data['target'].detach().cpu())
-        output_list.append(output.detach().cpu())
-
-    target_list = torch.concat(target_list).numpy()
-    output_list = torch.concat(output_list).numpy()
-
-    acc = accuracy_score(y_true=target_list, y_pred=output_list > 0.5)
-    auc = roc_auc_score(y_true=target_list, y_score=output_list)
 
     average_loss = total_loss / len(train_loader)
-    logger.info("TRAIN AUC : %.4f ACC : %.4f LOSS : %.4f", auc, acc, average_loss)
+    logger.info("TRAIN LOSS : %.4f", average_loss)
 
-    return auc, acc, average_loss
+    return average_loss
 
 
-def validate(model: nn.Module, valid_loader):
+def validate(model: nn.Module, valid_loader, loss_fun, cfg):
     model.eval()
+    total_loss = 0.0
+
     with torch.no_grad():
-        target_list = []
-        output_list = []
-        for data in tqdm(valid_loader, mininterval=1):
-            output = model(data)
-            target_list.append(data['target'].detach().cpu())
-            output_list.append(output.detach().cpu())
-    
-    target_list = torch.concat(target_list).numpy()
-    output_list = torch.concat(output_list).numpy()
+        for data, target in tqdm(valid_loader, mininterval=1):
+            output, embedded_target = model(data, target)
 
-    acc = accuracy_score(y_true=target_list, y_pred=output_list > 0.5)
-    auc = roc_auc_score(y_true=target_list, y_score=output_list)
+            loss = loss_fun(output.view(-1, output.shape[-1]), embedded_target.view(-1, output.shape[-1]), torch.ones(1, device=cfg.device))
+            total_loss += loss.item()
 
-    logger.info("VALID AUC : %.4f ACC : %.4f", auc, acc)
-    return auc, acc
+    average_loss = total_loss / len(valid_loader)
+    logger.info("TRAIN LOSS : %.4f", average_loss)
+
+    return average_loss
 
 
 def inference(cfg, model: nn.Module, prepared, output_dir: str):
     test_data = prepared['test_data']
     test_cfg = prepared['test_cfg']
 
-    test_data = LgcnTfDataset(test_data, test_cfg)
+    test_data = GTDataset(test_data, test_cfg)
     test_loader = DataLoader(test_data, batch_size=cfg.batch_size, shuffle=False)
 
     model.eval()
@@ -151,5 +91,30 @@ def inference(cfg, model: nn.Module, prepared, output_dir: str):
     logger.info("Successfully saved submission as %s", write_path)
 
 
-def split_data():
-    pass
+def get_data(cfg):
+    DATADIR = cfg.data_dir
+    
+    if not os.path.exists(os.path.join(DATADIR, "GT_train.csv")):
+        split_data(DATADIR)
+
+    train = pd.read_csv(os.path.join(DATADIR, "GT_train.csv"))
+    valid = pd.read_csv(os.path.join(DATADIR, "GT_valid.csv"))
+    all_data = pd.read_csv(os.path.join(DATADIR, "train_ratings2.csv"))
+
+    return train, valid, all_data
+
+
+def split_data(DATADIR):
+    data = pd.read_csv(os.path.join(DATADIR, "train_ratings2.csv"))
+    ids = data['user'].unique()
+    num_elements = len(ids)
+    num_to_select = int(num_elements * 0.2)  # 20%
+
+    # 무작위 인덱스 선택
+    random_indices = np.random.choice(num_elements, size=num_to_select, replace=False)
+
+    select = data['user'].apply(lambda x: True if x in ids[random_indices] else False)
+
+    data[~select].to_csv(os.path.join(DATADIR, "GT_train.csv"), index=False)
+    data[select].to_csv(os.path.join(DATADIR, "GT_valid.csv"), index=False)
+    data.to_csv(os.path.join(DATADIR, "GT_inference.csv"), index=False)

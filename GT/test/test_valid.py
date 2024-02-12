@@ -1,6 +1,6 @@
 import unittest
-from src.GT_dataset import GTDataset
-from src.GT_model import GTModel
+from src.dataset import GTDataset
+from src.model import GTModel
 import pandas as pd
 from src.utils import *
 from torch.utils.data import DataLoader
@@ -24,17 +24,15 @@ class TestGeneralRecommender(unittest.TestCase):
 
         model = GTModel(self.cfg, node_interaction).to(self.cfg.device)
 
+        loss_fun = nn.CosineEmbeddingLoss()
+
         model.eval()
         with torch.no_grad():
-            for data, _ in loader:
-                output, node_embedding = model(data)
-              
-                cosine_similarities = batch_cosine_similarity(node_embedding[-item_len:], output)
-                closest_idx = torch.argmax(cosine_similarities, dim=-1)
-                closest_idx = len(node_embedding) - item_len + closest_idx
+            for data, target in loader:
+                output, embedded_target = model(data, target)
+
+                loss = loss_fun(output.view(-1, output.shape[-1]), embedded_target.view(-1, output.shape[-1]), torch.ones(1, device=self.cfg.device))
                 
-                item_id = self.node_idx2obj[closest_idx]
-                print(item_id)
                 assert()
 
         assert()
