@@ -4,12 +4,12 @@ from torch.utils.data import DataLoader
 import torch
 from torch import nn
 import os
-
+import multiprocessing as mp
 
 from src.model import GTModel
 from src.dataset import GTDataset
 from src import trainer
-from src.utils import get_logger, parse_cfg, set_seeds
+from src.utils import *
 
 logger = get_logger()
 
@@ -22,25 +22,32 @@ def main():
     set_seeds(cfg.seed)
 
     logger.info("Preparing data ...")
-    train_data, valid_data, all_data = trainer.get_data(cfg)
+    train_data, valid_data, all_data = get_data(cfg)
     
     model_dir=cfg.model_dir
     os.makedirs(name=model_dir, exist_ok=True)
 
-    all_data = GTDataset(all_data, cfg)
-    all_data_cfg = copy.deepcopy(cfg)
-    vars = all_data.get_att()
-    all_data_cfg.node_idx_len, all_data_cfg.cate_idx_len = vars["node_idx_len"], vars["cate_idx_len"]
-    node_idx2obj, cate_idx2obj = vars["node_idx2obj"], vars["cate_idx2obj"]
-    all_data_node_interaction = vars["node_interaction"]
+    ### nan 값은 0, dummy user는 1, dummy item은 2, 나머지는 3부터 시작하도록 한다
+    cfg.node_idx_len, node_idx2obj, node_obj2idx = set_obj2idx(all_data, cfg.node_col_names, offset=3)
+    
+    ### nan 값은 0, dummy cate는 1, 나머지는 2부터 시작하도록 한다
+    cfg.cate_idx_len, cate_idx2obj, cate_obj2idx = set_obj2idx(all_data, cfg.cate_col_names, offset=2)
+
+    # node_idx2obj_tensor = torch.tensor(node_idx2obj, dtype=torch.int64, device=cfg.device)
+
+    set_obj2idx(train_data, cfg.node_col_names, node_obj2idx, offset=3)
+    set_obj2idx(train_data, cfg.cate_col_names, cate_obj2idx, offset=2)
+    set_obj2idx(valid_data, cfg.node_col_names, node_obj2idx, offset=3)
+    set_obj2idx(valid_data, cfg.cate_col_names, cate_obj2idx, offset=2)
 
     train_data = GTDataset(train_data, cfg, node_idx2obj, cate_idx2obj)
     valid_data = GTDataset(valid_data, cfg, node_idx2obj, cate_idx2obj)
-    
-    model = trainer.build(all_data_cfg, all_data_node_interaction)
 
-    train_loader = DataLoader(train_data, batch_size=cfg.batch_size, shuffle=True)
-    valid_loader = DataLoader(valid_data, batch_size=cfg.batch_size, shuffle=True)
+    train_loader = DataLoader(train_data, batch_size=cfg.batch_size, shuffle=True, num_workers=6)
+    valid_loader = DataLoader(valid_data, batch_size=cfg.batch_size, shuffle=True, num_workers=6)
+
+    node_interaction = get_node_interaction(all_data, cfg)
+    model = trainer.build(cfg, node_interaction)
 
     n_epochs=cfg.n_epochs
     learning_rate=cfg.lr
@@ -74,4 +81,5 @@ def main():
 
 
 if __name__ == "__main__":
+    mp.set_start_method('spawn', force=True)
     main()

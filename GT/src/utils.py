@@ -3,6 +3,7 @@ import torch.nn as nn
 import argparse
 import os
 import numpy as np
+import pandas as pd
 import random
 
 
@@ -150,3 +151,72 @@ def set_seeds(seed: int = 42):
     torch.cuda.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
     
+
+def set_obj2idx(df: pd.DataFrame, cols: list, obj2idx = None, offset: int = 1) -> tuple[pd.DataFrame, int]:
+    idx2obj = [-1 for _ in range(offset)]
+
+    if obj2idx is None:
+        obj2idx = {}
+        # Transformer을 위한 categorical feature의 index를 구한다
+        for col in cols:
+
+            # 각 column마다 mapper를 만든다
+            
+            for v in df[col].unique():
+                # np.nan != np.nan은 True가 나온다
+                # nan 및 None은 넘기는 코드
+                if (v != v) | (v == None):
+                    continue 
+
+                # nan을 고려하여 offset을 추가한다
+                obj2idx[v] = len(obj2idx) + offset
+                idx2obj.append(v)
+
+            # mapper를 이용하여 index로 변경한다
+            df[col] = df[col].map(obj2idx).astype(int)
+            
+            # 하나의 embedding layer를 사용할 것이므로 다른 feature들이 사용한 index값을
+            # 제외하기 위해 offset값을 지속적으로 추가한다
+            offset += len(obj2idx)
+
+    else:
+        for col in cols:
+            df[col] = df[col].map(obj2idx).astype(int)
+
+    return offset, idx2obj, obj2idx
+            
+
+def get_node_interaction(df, cfg):
+        node_interaction = df[cfg.node_col_names].transpose().values
+        node_interaction = torch.tensor(node_interaction, dtype=torch.int64).to(cfg.device)
+
+        return node_interaction
+
+
+def get_data(cfg):
+    DATADIR = cfg.data_dir
+    
+    if not os.path.exists(os.path.join(DATADIR, "GT_train.csv")):
+        split_data(DATADIR)
+
+    train = pd.read_csv(os.path.join(DATADIR, "GT_train.csv"))
+    valid = pd.read_csv(os.path.join(DATADIR, "GT_valid.csv"))
+    all_data = pd.read_csv(os.path.join(DATADIR, "train_ratings2.csv"))
+
+    return train, valid, all_data
+
+
+def split_data(DATADIR):
+    data = pd.read_csv(os.path.join(DATADIR, "train_ratings2.csv"))
+    ids = data['user'].unique()
+    num_elements = len(ids)
+    num_to_select = int(num_elements * 0.2)  # 20%
+
+    # 무작위 인덱스 선택
+    random_indices = np.random.choice(num_elements, size=num_to_select, replace=False)
+
+    select = data['user'].apply(lambda x: True if x in ids[random_indices] else False)
+
+    data[~select].to_csv(os.path.join(DATADIR, "GT_train.csv"), index=False)
+    data[select].to_csv(os.path.join(DATADIR, "GT_valid.csv"), index=False)
+    data.to_csv(os.path.join(DATADIR, "GT_inference.csv"), index=False)

@@ -34,7 +34,6 @@ def train(model: nn.Module, train_loader, optimizer: torch.optim.Optimizer, loss
     total_loss = 0.0
 
     for data, target in tqdm(train_loader, mininterval=1):
-        
         optimizer.zero_grad()
         output, embedded_target = model(data, target)
 
@@ -89,32 +88,4 @@ def inference(cfg, model: nn.Module, prepared, output_dir: str):
     pd.DataFrame({"prediction": output_list}).to_csv(path_or_buf=write_path, index_label="id")
 
     logger.info("Successfully saved submission as %s", write_path)
-
-
-def get_data(cfg):
-    DATADIR = cfg.data_dir
     
-    if not os.path.exists(os.path.join(DATADIR, "GT_train.csv")):
-        split_data(DATADIR)
-
-    train = pd.read_csv(os.path.join(DATADIR, "GT_train.csv"))
-    valid = pd.read_csv(os.path.join(DATADIR, "GT_valid.csv"))
-    all_data = pd.read_csv(os.path.join(DATADIR, "train_ratings2.csv"))
-
-    return train, valid, all_data
-
-
-def split_data(DATADIR):
-    data = pd.read_csv(os.path.join(DATADIR, "train_ratings2.csv"))
-    ids = data['user'].unique()
-    num_elements = len(ids)
-    num_to_select = int(num_elements * 0.2)  # 20%
-
-    # 무작위 인덱스 선택
-    random_indices = np.random.choice(num_elements, size=num_to_select, replace=False)
-
-    select = data['user'].apply(lambda x: True if x in ids[random_indices] else False)
-
-    data[~select].to_csv(os.path.join(DATADIR, "GT_train.csv"), index=False)
-    data[select].to_csv(os.path.join(DATADIR, "GT_valid.csv"), index=False)
-    data.to_csv(os.path.join(DATADIR, "GT_inference.csv"), index=False)
