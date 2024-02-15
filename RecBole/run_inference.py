@@ -34,20 +34,29 @@ if __name__ == '__main__':
     for data in test_data:
         interaction = data[0].to(device)
         score = model.full_sort_predict(interaction)
-        
+
         rating_pred = score.cpu().data.numpy().copy()
         batch_user_index = interaction['user_id'].cpu().numpy()
-        rating_pred[matrix[batch_user_index].toarray() > 0] = 0
-        ind = np.argpartition(rating_pred, -10)[:, -10:]
-        
-        arr_ind = rating_pred[np.arange(len(rating_pred))[:, None], ind]
+ 
+        if len(batch_user_index) == 1:
+            rating_pred[np.squeeze(matrix[batch_user_index].toarray()) > 0] = 0
+            ind = np.argpartition(rating_pred, -10)[-10:]
+            arr_ind = rating_pred[ind]
+            arr_ind_argsort = np.argsort(arr_ind)[::-1]
 
-        arr_ind_argsort = np.argsort(arr_ind)[np.arange(len(rating_pred)), ::-1]
+            batch_pred_list = ind[arr_ind_argsort]
+            batch_pred_list = np.expand_dims(batch_pred_list, axis=0)
 
-        batch_pred_list = ind[
-            np.arange(len(rating_pred))[:, None], arr_ind_argsort
-        ]
-        
+        else:
+            rating_pred[matrix[batch_user_index].toarray() > 0] = 0
+            ind = np.argpartition(rating_pred, -10)[:, -10:]
+            arr_ind = rating_pred[np.arange(len(rating_pred))[:, None], ind]
+            arr_ind_argsort = np.argsort(arr_ind)[np.arange(len(rating_pred)), ::-1]
+
+            batch_pred_list = ind[
+                np.arange(len(rating_pred))[:, None], arr_ind_argsort
+            ]
+
         # 예측값 저장
         if pred_list is None:
             pred_list = batch_pred_list
@@ -57,14 +66,16 @@ if __name__ == '__main__':
             user_list = np.append(user_list, batch_user_index, axis=0)
         
     result = []
+    print(pred_list.shape, user_list.shape)
+
     for user, pred in zip(user_list, pred_list):
         for item in pred:
             result.append((int(user_id2token[user]), int(item_id2token[item])))
-            
+
     # 데이터 저장
     dataframe = pd.DataFrame(result, columns=["user", "item"])
     dataframe.sort_values(by='user', inplace=True)
     dataframe.to_csv(
-        f"output/{str(args.model_path)[:-4]}.csv", index=False
+        f"{str(args.model_path)[:-4]}.csv", index=False
     )
     print('inference done!')
