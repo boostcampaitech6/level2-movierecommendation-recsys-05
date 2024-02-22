@@ -66,7 +66,7 @@ if __name__ == '__main__':
             user_list = np.append(user_list, batch_user_index, axis=0)
         
     result = []
-    print(pred_list.shape, user_list.shape)
+    # print(pred_list.shape, user_list.shape)
 
     for user, pred in zip(user_list, pred_list):
         for item in pred:
