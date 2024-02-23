@@ -51,3 +51,6 @@ alias_of_relation_id : ~         # (list) Fields' names remapped into the same i
 preload_weight : ~               # (dict) Preloaded weight in {IDs (token) : pretrained vectors (float-like)}.
 normalize_field : ~              # (list) List of filed names to be normalized.
 normalize_all : True             # (bool) Whether or not to normalize all the float like fields.
+
+data_path: /data/ephemeral/RecBole/dataset            # (str) The directory where the dataset is stored.
+dataset: movierec
